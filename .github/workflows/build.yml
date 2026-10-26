@@ -7,6 +7,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
+      - name: Configure launcher
+        working-directory: launcher/app/src/main/res/values
+        run: |
+          python3 - <<'EOF'
+          import re
+          p = 'config.xml'
+          s = open(p, encoding='utf-8').read()
+          def arr(name, items):
+              global s
+              body = '\n'.join('        <item>%s</item>' % i for i in items)
+              s, n = re.subn(r'(<string-array name="%s"[^>]*>).*?(</string-array>)' % name,
+                             lambda m: m.group(1) + '\n' + body + '\n    ' + m.group(2),
+                             s, count=1, flags=re.S)
+              assert n == 1, name
+          arr('dock_apps', ['com.netflix.ninja', 'com.google.android.youtube.tv', 'com.amazon.amazonvideo.livingroom', 'com.disney.disneyplus', 'com.wbd.stream', 'com.rtve.androidtv'])
+          arr('hidden_apps', ['com.mitv.livetv', 'com.mitv.gallery'])
+          arr('app_keys', ['190:com.google.android.youtube.tv', '193:com.netflix.ninja', '194:com.amazon.amazonvideo.livingroom'])
+          s, n = re.subn(r'(<string name="live_tv_package"[^>]*>)[^<]*(</string>)', r'\g<1>com.mitv.livetv\g<2>', s)
+          assert n == 1
+          s, n = re.subn(r'(<integer name="columns">)\d+(</integer>)', r'\g<1>6\g<2>', s)
+          assert n == 1
+          open(p, 'w', encoding='utf-8').write(s)
+          EOF
       - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - working-directory: launcher
         run: chmod +x gradlew && ./gradlew assembleRelease
